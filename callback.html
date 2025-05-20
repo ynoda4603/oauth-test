@@ -1,64 +1,80 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Salesforce OAuth Callback</title>
+  <meta charset="UTF-8" />
+  <title>Salesforce Callback</title>
 </head>
 <body>
-  <h1>OAuth認証リダイレクト</h1>
-  <p id="status">アクセストークンを取得中...</p>
+  <h1>アクセストークンを取得中...</h1>
+  <div id="result"></div>
 
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const returnedState = params.get('state');
-    const expectedState = sessionStorage.getItem('oauth_state');
+    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
+    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
+    const tokenUrl = 'https://login.salesforce.com/services/oauth2/token';
 
-    if (!code || returnedState !== expectedState) {
-      document.getElementById('status').textContent = 'エラー：不正な認可コードまたは state';
-      throw new Error('Invalid code or state');
+    function getParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
     }
 
-    const tokenEndpoint = 'https://login.salesforce.com/services/oauth2/token';
-    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ'; // 置き換えてください
-    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
-    const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-
-    async function exchangeCodeForToken() {
+    async function exchangeCodeForToken(code, codeVerifier) {
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
+        code,
         client_id: clientId,
-        code: code,
         redirect_uri: redirectUri,
         code_verifier: codeVerifier
       });
 
-      try {
-        const response = await fetch(tokenEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: body
-        });
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: body
+      });
 
-        if (!response.ok) {
-          throw new Error(`Token request failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Access Token:', data.access_token);
-        document.getElementById('status').textContent = 'アクセストークン取得成功！取引先を作成中...';
-
-        // ✅ ここで Salesforce API を呼び出して取引先を作成できます（CORS問題があればプロキシが必要）
-
-      } catch (err) {
-        console.error(err);
-        document.getElementById('status').textContent = 'アクセストークンの取得に失敗しました。';
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
+
+      return response.json();
     }
 
-    exchangeCodeForToken();
+    (async () => {
+      const code = getParam('code');
+      const returnedState = getParam('state');
+      const savedState = localStorage.getItem('oauth_state');
+      const codeVerifier = localStorage.getItem('pkce_code_verifier');
+
+      if (!code || !returnedState || !codeVerifier) {
+        document.getElementById('result').innerText = 'エラー：必要な情報が不足しています。';
+        return;
+      }
+
+      if (returnedState !== savedState) {
+        document.getElementById('result').innerText = 'エラー：不正なstateが検出されました。';
+        return;
+      }
+
+      try {
+        const tokenData = await exchangeCodeForToken(code, codeVerifier);
+        console.log('アクセストークン取得成功:', tokenData);
+        document.getElementById('result').innerText = `アクセストークン取得成功！\n\n${JSON.stringify(tokenData, null, 2)}`;
+
+        // 必要に応じて、ここでAPI呼び出しも可能です
+      } catch (err) {
+        console.error('トークン取得失敗:', err);
+        document.getElementById('result').innerText = `アクセストークン取得失敗：${err.message}`;
+      } finally {
+        // URLから ?code=... を消す（再読み込み防止）
+        history.replaceState({}, document.title, location.pathname);
+        localStorage.removeItem('pkce_code_verifier');
+        localStorage.removeItem('oauth_state');
+      }
+    })();
   </script>
 </body>
 </html>
