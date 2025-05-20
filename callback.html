@@ -1,63 +1,64 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <title>OAuth Callback</title>
+  <meta charset="UTF-8">
+  <title>Salesforce OAuth Callback</title>
 </head>
 <body>
-  <h2>アクセストークンを取得中...</h2>
-  <div id="result"></div>
+  <h1>OAuth認証リダイレクト</h1>
+  <p id="status">アクセストークンを取得中...</p>
 
   <script>
-    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const returnedState = params.get('state');
+    const expectedState = sessionStorage.getItem('oauth_state');
+
+    if (!code || returnedState !== expectedState) {
+      document.getElementById('status').textContent = 'エラー：不正な認可コードまたは state';
+      throw new Error('Invalid code or state');
+    }
+
+    const tokenEndpoint = 'https://login.salesforce.com/services/oauth2/token';
+    const clientId = 'YOUR_CLIENT_ID'; // 置き換えてください
     const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
-    const loginUrl = 'https://login.salesforce.com';
+    const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
 
-    async function exchangeCodeForToken(code) {
-      const tokenUrl = `${loginUrl}/services/oauth2/token`;
-      const codeVerifier = localStorage.getItem('code_verifier');
-
-      const params = new URLSearchParams();
-      params.append('grant_type', 'authorization_code');
-      params.append('code', code);
-      params.append('client_id', clientId);
-      params.append('redirect_uri', redirectUri);
-      params.append('code_verifier', codeVerifier);
-
-      const res = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params
+    async function exchangeCodeForToken() {
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code: code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
       });
 
-      return res.json();
-    }
+      try {
+        const response = await fetch(tokenEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: body
+        });
 
-    async function callApi(accessToken, instanceUrl) {
-      const res = await fetch(`${instanceUrl}/services/apexrest/CreateAccountAPI/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+        if (!response.ok) {
+          throw new Error(`Token request failed: ${response.status}`);
         }
-      });
-      const text = await res.text();
-      document.getElementById('result').textContent = 'API Response: ' + text;
+
+        const data = await response.json();
+        console.log('Access Token:', data.access_token);
+        document.getElementById('status').textContent = 'アクセストークン取得成功！取引先を作成中...';
+
+        // ✅ ここで Salesforce API を呼び出して取引先を作成できます（CORS問題があればプロキシが必要）
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('status').textContent = 'アクセストークンの取得に失敗しました。';
+      }
     }
 
-    (async () => {
-      const code = new URLSearchParams(window.location.search).get('code');
-      if (!code) {
-        document.getElementById('result').textContent = '認可コードが見つかりません';
-        return;
-      }
-
-      const tokenResponse = await exchangeCodeForToken(code);
-      if (tokenResponse.access_token && tokenResponse.instance_url) {
-        await callApi(tokenResponse.access_token, tokenResponse.instance_url);
-      } else {
-        document.getElementById('result').textContent = 'アクセストークン取得失敗: ' + JSON.stringify(tokenResponse);
-      }
-    })();
+    exchangeCodeForToken();
   </script>
 </body>
 </html>
