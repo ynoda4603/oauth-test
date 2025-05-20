@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Salesforce OAuth Example</title>
+</head>
+<body>
+  <h2>Salesforce にログインして取引先を作成</h2>
+  <button onclick="login()">Salesforceにログイン</button>
+
+  <script>
+
+    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ'; // Connected App の Consumer Key
+    const redirectUri = 'https://trainingco2-dev-ed.develop.lightning.force.com/callback.html';
+    const loginUrl = 'https://login.salesforce.com'; // sandboxの場合は https://test.salesforce.com
+
+    function login() {
+      const url = `${loginUrl}/services/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=api`;
+      window.location.href = url;
+    }
+  </script>
+</body>
+</html>
