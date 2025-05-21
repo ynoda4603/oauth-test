@@ -5,21 +5,20 @@
   <title>Salesforce OAuth Implicit Flow</title>
 </head>
 <body>
-  <h1>Salesforce OAuth Login (Implicit Flow)</h1>
-  <button id="loginBtn">Salesforceにログイン</button>
+  <h1>Salesforce OAuth Implicit Flow</h1>
+  <button id="loginBtn">Salesforce にログイン</button>
 
   <script>
-    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ'; // 例: 3MVG9...など
-    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html'; // あなたのcallback.htmlのURL
+    const clientId = 'あなたのクライアントID';
+    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html'; // 実際のURLに合わせてください
     const authUrl = 'https://login.salesforce.com/services/oauth2/authorize';
-    const scope = 'api refresh_token';
 
     document.getElementById('loginBtn').addEventListener('click', () => {
       const params = new URLSearchParams({
         response_type: 'token',
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope: 'api'
+        scope: 'api id'
       });
 
       window.location.href = `${authUrl}?${params.toString()}`;
