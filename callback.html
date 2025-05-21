@@ -42,6 +42,7 @@
 
     (async () => {
       const hashParams = parseHashParams(window.location.hash);
+      console.log('Hash Params:', hashParams);
       const accessToken = hashParams.access_token;
       const instanceUrl = hashParams.instance_url;
 
