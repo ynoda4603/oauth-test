@@ -46,7 +46,8 @@
         redirect_uri: redirectUri,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
-        state: state
+        state: state,
+        scope: 'api refresh_token'
       });
 
       window.location.href = `${authUrl}?${params.toString()}`;
