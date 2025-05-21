@@ -5,75 +5,36 @@
   <title>Salesforce Callback</title>
 </head>
 <body>
-  <h1>アクセストークンを取得中...</h1>
+  <h1>アクセストークンを取得しました</h1>
   <div id="result"></div>
 
   <script>
-    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
-    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
-    const tokenUrl = 'https://login.salesforce.com/services/oauth2/token';
-
-    function getParam(name) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(name);
+    function getHashParams() {
+      const hash = window.location.hash.substring(1); // 先頭の # を除去
+      const params = new URLSearchParams(hash);
+      return {
+        accessToken: params.get('access_token'),
+        instanceUrl: params.get('instance_url'),
+        tokenType: params.get('token_type'),
+        expiresIn: params.get('expires_in'),
+        state: params.get('state'),
+        scope: params.get('scope')
+      };
     }
 
-    async function exchangeCodeForToken(code, codeVerifier) {
-      const body = new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier
-      });
+    (function () {
+      const resultEl = document.getElementById('result');
+      const tokenData = getHashParams();
 
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: body
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      return response.json();
-    }
-
-    (async () => {
-      const code = getParam('code');
-      const returnedState = getParam('state');
-      const savedState = localStorage.getItem('oauth_state');
-      const codeVerifier = localStorage.getItem('pkce_code_verifier');
-
-      if (!code || !returnedState || !codeVerifier) {
-        document.getElementById('result').innerText = 'エラー：必要な情報が不足しています。';
+      if (!tokenData.accessToken) {
+        resultEl.innerText = 'アクセストークンが取得できませんでした。';
         return;
       }
 
-      if (returnedState !== savedState) {
-        document.getElementById('result').innerText = 'エラー：不正なstateが検出されました。';
-        return;
-      }
+      console.log('アクセストークン取得成功:', tokenData);
+      resultEl.innerText = `アクセストークン取得成功！\n\n${JSON.stringify(tokenData, null, 2)}`;
 
-      try {
-        const tokenData = await exchangeCodeForToken(code, codeVerifier);
-        console.log('アクセストークン取得成功:', tokenData);
-        document.getElementById('result').innerText = `アクセストークン取得成功！\n\n${JSON.stringify(tokenData, null, 2)}`;
-
-        // 必要に応じて、ここでAPI呼び出しも可能です
-      } catch (err) {
-        console.error('トークン取得失敗:', err);
-        document.getElementById('result').innerText = `アクセストークン取得失敗：${err.message}`;
-      } finally {
-        // URLから ?code=... を消す（再読み込み防止）
-        history.replaceState({}, document.title, location.pathname);
-        localStorage.removeItem('pkce_code_verifier');
-        localStorage.removeItem('oauth_state');
-      }
+      // 必要ならこのあと Salesforce REST API を呼び出すこともできます
     })();
   </script>
 </body>
