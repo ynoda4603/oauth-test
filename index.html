@@ -19,7 +19,7 @@
         response_type: 'token',
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope: scope
+        scope: 'api'
       });
 
       window.location.href = `${authUrl}?${params.toString()}`;
