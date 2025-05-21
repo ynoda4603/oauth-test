@@ -2,10 +2,10 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Salesforce OAuth PKCE Test</title>
+  <title>Salesforce OAuth Implicit Flow Test</title>
 </head>
 <body>
-  <h1>Salesforce OAuth PKCE Login</h1>
+  <h1>Salesforce OAuth Implicit Flow</h1>
   <button id="loginBtn">Salesforceにログイン</button>
 
   <script>
@@ -13,39 +13,24 @@
     const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
     const authUrl = 'https://login.salesforce.com/services/oauth2/authorize';
 
-    function generateRandomString(length = 64) {
-      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    function generateRandomString(length = 16) {
+      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
       let result = '';
       const array = new Uint32Array(length);
       crypto.getRandomValues(array);
-      for (let i = 0; i < array.length; i++) {
+      for (let i = 0; i < length; i++) {
         result += charset[array[i] % charset.length];
       }
       return result;
     }
 
-    async function generateCodeChallenge(verifier) {
-      const data = new TextEncoder().encode(verifier);
-      const digest = await crypto.subtle.digest('SHA-256', data);
-      const base64Digest = btoa(String.fromCharCode(...new Uint8Array(digest)))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      return base64Digest;
-    }
-
-    document.getElementById('loginBtn').addEventListener('click', async () => {
+    document.getElementById('loginBtn').addEventListener('click', () => {
       const state = generateRandomString(16);
-      const codeVerifier = generateRandomString();
-      const codeChallenge = await generateCodeChallenge(codeVerifier);
-
-      localStorage.setItem('pkce_code_verifier', codeVerifier);
-      localStorage.setItem('oauth_state', state);
 
       const params = new URLSearchParams({
-        response_type: 'code',
+        response_type: 'token', // ← Implicit Flow に重要
         client_id: clientId,
         redirect_uri: redirectUri,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
         state: state,
         scope: 'api refresh_token'
       });
@@ -55,3 +40,4 @@
   </script>
 </body>
 </html>
+
