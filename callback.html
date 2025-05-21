@@ -1,67 +1,78 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>OAuth Callback</title>
+  <meta charset="UTF-8" />
+  <title>Salesforce Callback</title>
 </head>
 <body>
-  <h1>アクセストークン取得＆Account作成</h1>
-  <pre id="output">読み込み中...</pre>
+  <h1>アクセストークンを取得中...</h1>
+  <div id="result"></div>
 
   <script>
-    function parseHashParams(hash) {
-      const params = {};
-      const queryString = hash.substring(1);
-      const regex = /([^&=]+)=([^&]*)/g;
-      let m;
-      while ((m = regex.exec(queryString))) {
-        params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);
-      }
-      return params;
+    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
+    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
+    const tokenUrl = 'https://login.salesforce.com/services/oauth2/token';
+
+    function getParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
     }
 
-    async function createAccount(accessToken, instanceUrl) {
-      const account = {
-        Name: 'GitHub OAuth テスト',
-        Phone: '03-1234-5678',
-        Website: 'https://example.com'
-      };
-
-      const response = await fetch(${instanceUrl}/services/data/v59.0/sobjects/Account, {
-        method: 'POST',
-        headers: {
-          'Authorization': Bearer ${accessToken},
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(account)
+    async function exchangeCodeForToken(code, codeVerifier) {
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
       });
 
-      const result = await response.json();
-      return result;
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: body
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      return response.json();
     }
 
     (async () => {
-      const hashParams = parseHashParams(window.location.hash);
-      console.log('Hash Params:', hashParams);
-      const accessToken = hashParams.access_token;
-      const instanceUrl = hashParams.instance_url;
+      const code = getParam('code');
+      const returnedState = getParam('state');
+      const savedState = localStorage.getItem('oauth_state');
+      const codeVerifier = localStorage.getItem('pkce_code_verifier');
 
-      const output = document.getElementById('output');
+      if (!code || !returnedState || !codeVerifier) {
+        document.getElementById('result').innerText = 'エラー：必要な情報が不足しています。';
+        return;
+      }
 
-      if (!accessToken || !instanceUrl) {
-        output.textContent = 'アクセストークンまたはインスタンスURLが取得できませんでした。';
+      if (returnedState !== savedState) {
+        document.getElementById('result').innerText = 'エラー：不正なstateが検出されました。';
         return;
       }
 
       try {
-        const result = await createAccount(accessToken, instanceUrl);
-        if (result.id) {
-          output.textContent = 取引先レコード作成成功！ID: ${result.id};
-        } else {
-          output.textContent = 作成失敗: ${JSON.stringify(result, null, 2)};
-        }
-      } catch (e) {
-        output.textContent = エラー: ${e};
+        const tokenData = await exchangeCodeForToken(code, codeVerifier);
+        console.log('アクセストークン取得成功:', tokenData);
+        document.getElementById('result').innerText = `アクセストークン取得成功！\n\n${JSON.stringify(tokenData, null, 2)}`;
+
+        // 必要に応じて、ここでAPI呼び出しも可能です
+      } catch (err) {
+        console.error('トークン取得失敗:', err);
+        document.getElementById('result').innerText = `アクセストークン取得失敗：${err.message}`;
+      } finally {
+        // URLから ?code=... を消す（再読み込み防止）
+        history.replaceState({}, document.title, location.pathname);
+        localStorage.removeItem('pkce_code_verifier');
+        localStorage.removeItem('oauth_state');
       }
     })();
   </script>
