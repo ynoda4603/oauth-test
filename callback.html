@@ -26,6 +26,18 @@
     } else {
       resultEl.innerText = '✅ アクセストークン取得成功。\nSalesforce に取引先レコードを作成中...';
 
+    // 現在時刻の取得（例: "2025-05-22 14:37:12"）
+    const now = new Date();
+    const formattedTime = `${now.getFullYear()}-${(now.getMonth() + 1)
+      .toString()
+      .padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now
+      .getHours()
+      .toString()
+      .padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now
+      .getSeconds()
+      .toString()
+      .padStart(2, '0')}`;
+
       // REST APIで取引先レコードを作成
       fetch(`${instanceUrl}/services/data/v63.0/sobjects/Account/`, {
         method: 'POST',
@@ -34,7 +46,7 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          Name: 'GitHubからの取引先',
+          Name: `GitHubからの取引先 - ${formattedTime}`,
           Phone: '03-1234-5678'
         })
       })
