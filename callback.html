@@ -5,76 +5,54 @@
   <title>Salesforce Callback</title>
 </head>
 <body>
-  <h1>アクセストークンを取得中...</h1>
-  <div id="result"></div>
+  <h1>Salesforce OAuth & 取引先作成</h1>
+  <pre id="result">処理中...</pre>
 
   <script>
-    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
-    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
-    const tokenUrl = 'https://login.salesforce.com/services/oauth2/token';
+    const resultEl = document.getElementById('result');
 
-    function getParam(name) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(name);
-    }
+    // アクセストークンなどをURLのハッシュから取得
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hashParams.get('access_token');
+    const instanceUrl = hashParams.get('instance_url');
+    const returnedState = hashParams.get('state');
+    const savedState = localStorage.getItem('oauth_state');
 
-    async function exchangeCodeForToken(code, codeVerifier) {
-      const body = new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier
-      });
+    // バリデーション
+    if (!accessToken || !instanceUrl || !returnedState) {
+      resultEl.innerText = '❌ エラー：トークン情報が不足しています。';
+    } else if (returnedState !== savedState) {
+      resultEl.innerText = '❌ エラー：state が一致しません。';
+    } else {
+      resultEl.innerText = '✅ アクセストークン取得成功。\nSalesforce に取引先レコードを作成中...';
 
-      const response = await fetch(tokenUrl, {
+      // REST APIで取引先レコードを作成
+      fetch(`${instanceUrl}/services/data/v60.0/sobjects/Account/`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
         },
-        body: body
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      return response.json();
+        body: JSON.stringify({
+          Name: 'GitHubからの取引先',
+          Phone: '03-1234-5678'
+        })
+      })
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          resultEl.innerText = '🎉 取引先レコード作成成功！\n\n' + JSON.stringify(data, null, 2);
+        })
+        .catch(err => {
+          resultEl.innerText = `❌ レコード作成失敗：${err.message}`;
+        });
     }
 
-    (async () => {
-      const code = getParam('code');
-      const returnedState = getParam('state');
-      const savedState = localStorage.getItem('oauth_state');
-      const codeVerifier = localStorage.getItem('pkce_code_verifier');
-
-      if (!code || !returnedState || !codeVerifier) {
-        document.getElementById('result').innerText = 'エラー：必要な情報が不足しています。';
-        return;
-      }
-
-      if (returnedState !== savedState) {
-        document.getElementById('result').innerText = 'エラー：不正なstateが検出されました。';
-        return;
-      }
-
-      try {
-        const tokenData = await exchangeCodeForToken(code, codeVerifier);
-        console.log('アクセストークン取得成功:', tokenData);
-        document.getElementById('result').innerText = `アクセストークン取得成功！\n\n${JSON.stringify(tokenData, null, 2)}`;
-
-        // 必要に応じて、ここでAPI呼び出しも可能です
-      } catch (err) {
-        console.error('トークン取得失敗:', err);
-        document.getElementById('result').innerText = `アクセストークン取得失敗：${err.message}`;
-      } finally {
-        // URLから ?code=... を消す（再読み込み防止）
-        history.replaceState({}, document.title, location.pathname);
-        localStorage.removeItem('pkce_code_verifier');
-        localStorage.removeItem('oauth_state');
-      }
-    })();
+    // クリーンアップ
+    localStorage.removeItem('oauth_state');
+    history.replaceState({}, document.title, location.pathname);
   </script>
 </body>
 </html>
