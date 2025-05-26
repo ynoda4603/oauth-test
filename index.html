@@ -1,55 +1,81 @@
-document.getElementById('loginBtn').addEventListener('click', async () => { // async/await を使用するために async を追加
-  // Client Credentials Grant では state や redirect_uri は通常不要です。
-  // const state = generateRandomString();
-  // localStorage.setItem('oauth_state', state);
-  // ★セキュリティに関する非常に重要な注意★
-  // クライアントサイドのJavaScriptで client_secret を扱うことは、
-  // ブラウザの開発者ツールなどで誰でも閲覧可能になるため、非常に危険です。
-  // Client Credentials Grant は通常、サーバーサイドアプリケーションなど、
-  // クライアントシークレットを安全に保管できる環境で使用されます。
-  // もしSalesforceのようなプラットフォームでフロントエンドから利用する場合は、
-  // この方法が適切か、セキュリティリスクを十分に検討してください。
-  // 代わりにBackend for Frontend (BFF) パターンを検討するか、
-  // Salesforceが推奨する他のOAuthフロー（PKCEを伴う認可コードフローなど、
-  // ただしClient Credentialsとは目的が異なります）の利用を検討してください。
-  const tokenUrl = 'https://ynoda4603.github.io/oauth-test/callback.html'; // ★ここを実際のトークンエンドポイントURLに置き換えてください★
-  const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';       // ★ここを実際のクライアントIDに置き換えてください★
-  const clientSecret = '3D066D0E344B0E3286C048CAAEBA0EC23F64651D3CE8D5209DFEBE8478F3C0C4'; // ★ここを実際のクライアントシークレットに置き換えてください (セキュリティリスク!)★
-  // リクエストボディの準備 (application/x-www-form-urlencoded 形式)
-  const params = new URLSearchParams();
-  params.append('grant_type', 'client_credentials');
-  params.append('client_id', clientId);
-  params.append('client_secret', clientSecret);
-  // params.append('scope', 'api'); // 必要に応じてスコープを指定
-  try {
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(), // URLSearchParamsオブジェクトを文字列化してボディに設定
-    });
-    if (response.ok) {
-      const tokenData = await response.json(); // レスポンスは通常JSON形式
-      console.log('トークン取得成功:', tokenData);
-      // ここで取得したアクセストークン (例: tokenData.access_token) を使用する処理
-      // 例: localStorage.setItem('access_token', tokenData.access_token);
-      //     alert('アクセストークンを取得しました: ' + tokenData.access_token);
-    } else {
-      // エラーレスポンスもJSON形式の場合があるので、内容を確認
-      let errorData = null;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        errorData = await response.text(); // JSONでなければテキストとして取得
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Salesforce OAuth Token Flow (Client Credentials)</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .warning { color: red; font-weight: bold; border: 1px solid red; padding: 10px; margin-bottom: 15px; }
+    button { padding: 10px 15px; font-size: 16px; cursor: pointer; }
+    pre { background-color: #F0F0F0; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>Salesforce Client Credentials Flow ログイン</h1>
+  <div class="warning">
+    <strong>セキュリティに関する非常に重要な注意:</strong><br>
+    このサンプルでは、クライアントシークレット (`clientSecret`) をフロントエンドのJavaScriptコードに直接記述しています。これは、ブラウザの開発者ツールなどで誰でも閲覧可能になるため、**非常に危険であり、本番環境では絶対に避けるべきです。**<br>
+    Client Credentials Grant フローは通常、サーバーサイドアプリケーションなど、クライアントシークレットを安全に保管できる環境で使用されます。<br>
+    もしフロントエンドからSalesforce APIを利用する必要がある場合は、Backend for Frontend (BFF) パターンを検討するか、Salesforceが推奨する他のより安全なOAuthフロー（ユーザー認証を伴う場合はPKCE付き認可コードフローなど）の利用を検討してください。
+  </div>
+  <button id="loginBtn">アクセストークン取得 (Client Credentials)</button>
+  <div id="resultArea" style="margin-top: 20px;">
+    <h3>結果:</h3>
+    <pre id="resultText">ここに結果が表示されます...</pre>
+  </div>
+  <script>
+    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ'; // あなたのクライアントID
+    const clientSecret = '3D066D0E344B0E3286C048CAAEBA0EC23F64651D3CE8D5209DFEBE8478F3C0C4'; // あなたのクライアントシークレット (★セキュリティリスク★)
+    // redirectUri は Client Credentials Grant では通常不要です。
+    // const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
+    const tokenEndpointUrl = 'https://trainingco2-dev-ed.develop.my.salesforce.com/services/oauth2/token'; // あなたのSalesforce組織のトークンエンドポイント
+    // generateRandomString 関数は Client Credentials Grant では通常不要です。
+    /*
+    function generateRandomString(length = 16) {
+      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      const array = new Uint32Array(length);
+      crypto.getRandomValues(array);
+      for (let i = 0; i < length; i++) {
+        result += charset[array[i] % charset.length];
       }
-      console.error('トークン取得失敗:', response.status, response.statusText, errorData);
-      alert(`トークンの取得に失敗しました。ステータス: ${response.status} \n詳細はコンソールを確認してください。`);
+      return result;
     }
-  } catch (error) {
-    console.error('通信エラー:', error);
-    alert('トークン取得時に通信エラーが発生しました。\n詳細はコンソールを確認してください。');
-  }
-});
-// generateRandomString 関数は Client Credentials Grant では通常不要です。
-// function generateRandomString() { /* ... */ }
+    */
+    document.getElementById('loginBtn').addEventListener('click', async () => { // async 関数に変更
+      const resultTextElement = document.getElementById('resultText');
+      resultTextElement.textContent = 'トークン取得処理中...';
+      // Client Credentials Grant では state や redirect_uri は通常不要です。
+      // const state = generateRandomString();
+      // localStorage.setItem('oauth_state', state);
+      const params = new URLSearchParams();
+      params.append('grant_type', 'client_credentials');
+      params.append('client_id', clientId);
+      params.append('client_secret', clientSecret);
+      // params.append('scope', 'api'); // 必要に応じてスコープを指定 (例: 'api full')
+      try {
+        const response = await fetch(tokenEndpointUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(), // URLSearchParamsオブジェクトを文字列化してボディに設定
+        });
+        const responseData = await response.json(); // レスポンスは通常JSON形式
+        if (response.ok) {
+          console.log('トークン取得成功:', responseData);
+          resultTextElement.textContent = 'トークン取得成功:\n' + JSON.stringify(responseData, null, 2);
+          // ここで取得したアクセストークン (例: responseData.access_token) を使用する処理
+          // 例: localStorage.setItem('salesforce_access_token', responseData.access_token);
+        } else {
+          console.error('トークン取得失敗:', response.status, response.statusText, responseData);
+          resultTextElement.textContent = `トークン取得失敗 (ステータス: ${response.status}):\n` + JSON.stringify(responseData, null, 2);
+        }
+      } catch (error) {
+        console.error('通信エラーまたは予期せぬエラー:', error);
+        resultTextElement.textContent = '通信エラーまたは予期せぬエラーが発生しました:\n' + error.toString();
+      }
+    });
+  </script>
+</body>
+</html>
