@@ -2,78 +2,151 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Salesforce OAuth Token Flow (Client Credentials)</title>
+  <title>Salesforce OAuth & Account Insert</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
+    .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
     .warning { color: red; font-weight: bold; border: 1px solid red; padding: 10px; margin-bottom: 15px; }
-    button { padding: 10px 15px; font-size: 16px; cursor: pointer; }
+    button { padding: 10px 15px; font-size: 16px; cursor: pointer; margin-top:5px; }
+    label { display: inline-block; width: 120px; margin-bottom: 5px;}
+    input[type="text"] { width: 280px; padding: 8px; margin-bottom: 10px; }
     pre { background-color: #F0F0F0; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; word-break: break-all; }
   </style>
 </head>
 <body>
-  <h1>Salesforce Client Credentials Flow ログイン</h1>
+  <h1>Salesforce: 1. トークン取得 / 2. 取引先作成</h1>
   <div class="warning">
     <strong>セキュリティに関する非常に重要な注意:</strong><br>
     このサンプルでは、クライアントシークレット (`clientSecret`) をフロントエンドのJavaScriptコードに直接記述しています。これは、ブラウザの開発者ツールなどで誰でも閲覧可能になるため、**非常に危険であり、本番環境では絶対に避けるべきです。**<br>
-    Client Credentials Grant フローは通常、サーバーサイドアプリケーションなど、クライアントシークレットを安全に保管できる環境で使用されます。<br>
-    もしフロントエンドからSalesforce APIを利用する必要がある場合は、Backend for Frontend (BFF) パターンを検討するか、Salesforceが推奨する他のより安全なOAuthフロー（ユーザー認証を伴う場合はPKCE付き認可コードフローなど）の利用を検討してください。
+    学習・テスト目的でのみ使用し、実際のアプリケーションではサーバーサイドで認証処理を行うなど、より安全な方法を検討してください。
   </div>
-  <button id="loginBtn">アクセストークン取得 (Client Credentials)</button>
-  <div id="resultArea" style="margin-top: 20px;">
-    <h3>結果:</h3>
-    <pre id="resultText">ここに結果が表示されます...</pre>
+  <div class="section">
+    <h2>ステップ1: アクセストークン取得 (Client Credentials)</h2>
+    <button id="loginBtn">アクセストークン取得</button>
+    <div id="tokenResultArea" style="margin-top: 10px;">
+      <pre id="tokenResultText">ここにトークン取得結果が表示されます...</pre>
+    </div>
+  </div>
+  <div class="section" id="createAccountSection" style="display: none;">
+    <h2>ステップ2: 取引先 (Account) の作成</h2>
+    <div>
+      <label for="accountNameInput">取引先名:</label>
+      <input type="text" id="accountNameInput" placeholder="例: 株式会社ABC">
+    </div>
+    <div>
+      <label for="accountPhoneInput">電話番号 (任意):</label>
+      <input type="text" id="accountPhoneInput" placeholder="例: 03-1234-5678">
+    </div>
+    <div>
+      <label for="accountWebsiteInput">ウェブサイト (任意):</label>
+      <input type="text" id="accountWebsiteInput" placeholder="例: https://www.example.com">
+    </div>
+    <button id="createAccountBtn">取引先を作成</button>
+    <div id="accountResultArea" style="margin-top: 10px;">
+      <pre id="accountResultText">ここに取引先作成結果が表示されます...</pre>
+    </div>
   </div>
   <script>
     const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ'; // あなたのクライアントID
     const clientSecret = '3D066D0E344B0E3286C048CAAEBA0EC23F64651D3CE8D5209DFEBE8478F3C0C4'; // あなたのクライアントシークレット (★セキュリティリスク★)
-    // redirectUri は Client Credentials Grant では通常不要です。
-    // const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
     const tokenEndpointUrl = 'https://trainingco2-dev-ed.develop.my.salesforce.com/services/oauth2/token'; // あなたのSalesforce組織のトークンエンドポイント
-    // generateRandomString 関数は Client Credentials Grant では通常不要です。
-    /*
-    function generateRandomString(length = 16) {
-      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let result = '';
-      const array = new Uint32Array(length);
-      crypto.getRandomValues(array);
-      for (let i = 0; i < length; i++) {
-        result += charset[array[i] % charset.length];
-      }
-      return result;
-    }
-    */
-    document.getElementById('loginBtn').addEventListener('click', async () => { // async 関数に変更
-      const resultTextElement = document.getElementById('resultText');
-      resultTextElement.textContent = 'トークン取得処理中...';
-      // Client Credentials Grant では state や redirect_uri は通常不要です。
-      // const state = generateRandomString();
-      // localStorage.setItem('oauth_state', state);
+    const salesforceApiVersion = 'v59.0'; // 使用するSalesforce APIのバージョン
+    let currentAccessToken = null;
+    let currentInstanceUrl = null;
+    const tokenResultTextElement = document.getElementById('tokenResultText');
+    const accountResultTextElement = document.getElementById('accountResultText');
+    const createAccountSectionElement = document.getElementById('createAccountSection');
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      tokenResultTextElement.textContent = 'トークン取得処理中...';
+      currentAccessToken = null;
+      currentInstanceUrl = null;
+      createAccountSectionElement.style.display = 'none'; // 取引先作成セクションを非表示に
       const params = new URLSearchParams();
       params.append('grant_type', 'client_credentials');
       params.append('client_id', clientId);
       params.append('client_secret', clientSecret);
-      // params.append('scope', 'api'); // 必要に応じてスコープを指定 (例: 'api full')
       try {
         const response = await fetch(tokenEndpointUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: params.toString(), // URLSearchParamsオブジェクトを文字列化してボディに設定
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
         });
-        const responseData = await response.json(); // レスポンスは通常JSON形式
-        if (response.ok) {
+        const responseData = await response.json();
+        if (response.ok && responseData.access_token) {
+          currentAccessToken = responseData.access_token;
+          currentInstanceUrl = responseData.instance_url;
           console.log('トークン取得成功:', responseData);
-          resultTextElement.textContent = 'トークン取得成功:\n' + JSON.stringify(responseData, null, 2);
-          // ここで取得したアクセストークン (例: responseData.access_token) を使用する処理
-          // 例: localStorage.setItem('salesforce_access_token', responseData.access_token);
+          tokenResultTextElement.textContent = 'トークン取得成功:\n' + JSON.stringify(responseData, null, 2);
+          createAccountSectionElement.style.display = 'block'; // 取引先作成セクションを表示
         } else {
           console.error('トークン取得失敗:', response.status, response.statusText, responseData);
-          resultTextElement.textContent = `トークン取得失敗 (ステータス: ${response.status}):\n` + JSON.stringify(responseData, null, 2);
+          tokenResultTextElement.textContent = `トークン取得失敗 (ステータス: ${response.status}):\n` + JSON.stringify(responseData, null, 2);
         }
       } catch (error) {
-        console.error('通信エラーまたは予期せぬエラー:', error);
-        resultTextElement.textContent = '通信エラーまたは予期せぬエラーが発生しました:\n' + error.toString();
+        console.error('トークン取得時の通信エラーまたは予期せぬエラー:', error);
+        tokenResultTextElement.textContent = 'トークン取得時の通信エラーまたは予期せぬエラーが発生しました:\n' + error.toString();
+      }
+    });
+    document.getElementById('createAccountBtn').addEventListener('click', async () => {
+      if (!currentAccessToken || !currentInstanceUrl) {
+        accountResultTextElement.textContent = 'エラー: まずアクセストークンを取得してください。';
+        alert('まず「アクセストークン取得」ボタンをクリックして、トークンを取得してください。');
+        return;
+      }
+      const accountName = document.getElementById('accountNameInput').value;
+      const accountPhone = document.getElementById('accountPhoneInput').value;
+      const accountWebsite = document.getElementById('accountWebsiteInput').value;
+      if (!accountName.trim()) {
+        accountResultTextElement.textContent = 'エラー: 取引先名は必須です。';
+        alert('取引先名を入力してください。');
+        return;
+      }
+      accountResultTextElement.textContent = '取引先作成処理中...';
+      const accountData = { Name: accountName.trim() };
+      if (accountPhone.trim()) {
+        accountData.Phone = accountPhone.trim();
+      }
+      if (accountWebsite.trim()) {
+        accountData.Website = accountWebsite.trim();
+      }
+      // 他にも必要な項目があればここに追加できます
+      //例: accountData.BillingCity = 'Tokyo';
+      const accountEndpoint = `${currentInstanceUrl}/services/data/${salesforceApiVersion}/sobjects/Account/`;
+      try {
+        const response = await fetch(accountEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + currentAccessToken,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json' // レスポンス形式の期待
+          },
+          body: JSON.stringify(accountData)
+        });
+        // レスポンスボディがない場合 (204 No Contentなど) や、エラーでJSONでない場合も考慮
+        let responseData;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            responseData = await response.json();
+        } else if (response.status === 204 ) { // No Content (例: DELETE成功時など。今回はPOSTなので通常はJSONが返る)
+            responseData = { success: true, id: null, message: "No content in response, but operation likely successful." };
+        }
+         else {
+            responseData = { error: "Non-JSON response", details: await response.text() };
+        }
+        if (response.ok && response.status === 201) { // 201 Created が標準的な成功ステータス
+          console.log('取引先作成成功:', responseData);
+          accountResultTextElement.textContent = '取引先作成成功:\n' + JSON.stringify(responseData, null, 2);
+          //入力フィールドをクリア
+          document.getElementById('accountNameInput').value = '';
+          document.getElementById('accountPhoneInput').value = '';
+          document.getElementById('accountWebsiteInput').value = '';
+        } else {
+          console.error('取引先作成失敗:', response.status, response.statusText, responseData);
+          accountResultTextElement.textContent = `取引先作成失敗 (ステータス: ${response.status}):\n` + JSON.stringify(responseData, null, 2);
+        }
+      } catch (error) {
+        console.error('取引先作成時の通信エラーまたは予期せぬエラー:', error);
+        accountResultTextElement.textContent = '取引先作成時の通信エラーまたは予期せぬエラーが発生しました:\n' + error.toString();
       }
     });
   </script>
