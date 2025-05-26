@@ -9,40 +9,36 @@
   <button id="loginBtn">Salesforce にログイン</button>
 
   <script>
-    const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
-    const clientSecret = '3D066D0E344B0E3286C048CAAEBA0EC23F64651D3CE8D5209DFEBE8478F3C0C4';
-    const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
-    const authUrl = 'https://trainingco2-dev-ed.develop.my.salesforce.com/services/oauth2/token';
-    //const authUrl = 'https://trainingco2-dev-ed.my.salesforce.com/services/oauth2/token';
+  const clientId = '3MVG929eOx29turHjzNb74yZQnXr5uJtUsDrzM__YQJ3v.Ta9KLfsqAtjHafYKqzMaK5pAIRywXy7dvix2KuZ';
+  const redirectUri = 'https://ynoda4603.github.io/oauth-test/callback.html';
+  const authUrl = 'https://login.salesforce.com/services/oauth2/authorize'; // 認証エンドポイント
 
-
-    function generateRandomString(length = 16) {
-      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let result = '';
-      const array = new Uint32Array(length);
-      crypto.getRandomValues(array);
-      for (let i = 0; i < length; i++) {
-        result += charset[array[i] % charset.length];
-      }
-      return result;
+  function generateRandomString(length = 16) {
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    const array = new Uint32Array(length);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+      result += charset[array[i] % charset.length];
     }
+    return result;
+  }
 
-    document.getElementById('loginBtn').addEventListener('click', () => {
-      const state = generateRandomString();
-      localStorage.setItem('oauth_state', state);
+  document.getElementById('loginBtn').addEventListener('click', () => {
+    const state = generateRandomString();
+    localStorage.setItem('oauth_state', state);
 
-      const params = new URLSearchParams({
-        //response_type: 'token',
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'client_credentials',
-        //redirect_uri: redirectUri,
-        //state: state,
-        //scope: 'api'
-      });
-
-      window.location.href = `${authUrl}?${params.toString()}`;
+    const params = new URLSearchParams({
+      response_type: 'token',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      state: state,
+      scope: 'api refresh_token' // 必要に応じて調整
     });
-  </script>
+
+    window.location.href = `${authUrl}?${params.toString()}`;
+  });
+</script>
+
 </body>
 </html>
