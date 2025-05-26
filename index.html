@@ -33,7 +33,7 @@
       client_id: clientId,
       redirect_uri: redirectUri,
       state: state,
-      scope: 'api refresh_token' // 必要に応じて調整
+      scope: 'api' // 必要に応じて調整
     });
 
     window.location.href = `${authUrl}?${params.toString()}`;
